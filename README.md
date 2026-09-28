@@ -37,4 +37,4 @@ The application provides ready-made prompts to help users get started.
 Clone the repository:
 
 ```bash
-git clone YOUR_GITHUB_REPOSITORY_URL
+git clone YOUR_GITHUB_REPOSITORY_URL"# The-Art-Of-AI" 
