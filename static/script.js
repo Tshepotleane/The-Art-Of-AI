@@ -5,6 +5,8 @@ const promptCards = document.querySelectorAll(".prompt-card");
 
 const promptInput = document.getElementById("prompt");
 const generateButton = document.getElementById("generateButton");
+const themeToggle = document.getElementById("themeToggle");
+const themeLabel = themeToggle?.querySelector(".theme-label");
 
 const loading = document.getElementById("loading");
 const resultSection = document.getElementById("resultSection");
@@ -12,6 +14,38 @@ const resultBox = document.getElementById("result");
 
 const copyButton = document.getElementById("copyButton");
 const clearButton = document.getElementById("clearButton");
+
+
+function applyTheme(theme) {
+    const isDark = theme === "dark";
+
+    document.body.classList.toggle("dark-theme", isDark);
+    document.body.classList.toggle("light-theme", !isDark);
+
+    if (themeLabel) {
+        themeLabel.textContent = isDark ? "Light" : "Dark";
+    }
+
+    if (themeToggle) {
+        themeToggle.setAttribute(
+            "aria-label",
+            isDark ? "Switch to light mode" : "Switch to dark mode"
+        );
+    }
+
+    localStorage.setItem("theme", theme);
+}
+
+const initialTheme = "dark";
+
+applyTheme(initialTheme);
+
+if (themeToggle) {
+    themeToggle.addEventListener("click", () => {
+        const nextTheme = document.body.classList.contains("dark-theme") ? "light" : "dark";
+        applyTheme(nextTheme);
+    });
+}
 
 
 // SELECT CONTENT TYPE
@@ -66,6 +100,13 @@ promptCards.forEach(card => {
 
     });
 
+});
+
+
+// CLEAR
+clearButton.addEventListener("click", () => {
+    promptInput.value = "";
+    promptInput.focus();
 });
 
 

@@ -1,14 +1,58 @@
+:root {
+    --bg: #f3f5fb;
+    --bg-elevated: #ffffff;
+    --bg-panel: #eef2ff;
+    --bg-soft: #edf3ff;
+    --border: #dfe6f1;
+    --text: #121826;
+    --muted: #5d6780;
+    --accent: #7c6ae5;
+    --accent-soft: #ebe5ff;
+    --button-text: #0f172a;
+    --shadow: rgba(15, 23, 42, 0.08);
+    --input-bg: #f8f9ff;
+    --card-hover: #f5f1ff;
+    --spinner-track: #dfe6f1;
+}
+
+body.dark-theme {
+    --bg: #0a0b10;
+    --bg-elevated: #12141b;
+    --bg-panel: #171b25;
+    --bg-soft: #11161f;
+    --border: #292f3d;
+    --text: #f3f4f6;
+    --muted: #a0a8bb;
+    --accent: #a78bfa;
+    --accent-soft: #1b172b;
+    --button-text: #09090c;
+    --shadow: rgba(0, 0, 0, 0.22);
+    --input-bg: #0d1018;
+    --card-hover: #1c1d29;
+    --spinner-track: #2d3342;
+}
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 body {
     font-family: Arial, Helvetica, sans-serif;
-    background: #0b0b0f;
-    color: #ffffff;
+    background: var(--bg);
+    color: var(--text);
     min-height: 100vh;
+    transition: background 0.25s ease, color 0.25s ease;
+}
+
+button,
+textarea {
+    font: inherit;
 }
 
 .navbar {
@@ -17,8 +61,9 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid #222229;
-    background: #0b0b0f;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-elevated);
+    box-shadow: 0 1px 0 var(--shadow);
 }
 
 .logo {
@@ -30,9 +75,42 @@ body {
     margin-right: 8px;
 }
 
+.nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+}
+
 .tagline {
-    color: #9999a5;
+    color: var(--muted);
     font-size: 14px;
+}
+
+.theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-panel);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.theme-toggle:hover {
+    border-color: var(--accent);
+    transform: translateY(-1px);
+}
+
+.theme-icon {
+    font-size: 16px;
+}
+
+.theme-label {
+    font-size: 13px;
+    font-weight: 700;
 }
 
 .container {
@@ -47,7 +125,7 @@ body {
 }
 
 .eyebrow {
-    color: #a78bfa;
+    color: var(--accent);
     font-size: 13px;
     font-weight: bold;
     letter-spacing: 2px;
@@ -62,23 +140,24 @@ body {
 
 .hero h1 span {
     display: block;
-    color: #a78bfa;
+    color: var(--accent);
 }
 
 .hero-text {
     max-width: 650px;
     margin: auto;
-    color: #a3a3ad;
+    color: var(--muted);
     font-size: 17px;
     line-height: 1.7;
 }
 
 .generator-card {
-    background: #131319;
-    border: 1px solid #272730;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
     border-radius: 20px;
     padding: 30px;
     margin-bottom: 70px;
+    box-shadow: 0 16px 30px var(--shadow);
 }
 
 .card-header {
@@ -94,16 +173,17 @@ body {
 
 .clear-button {
     background: transparent;
-    color: #9999a5;
-    border: 1px solid #33333d;
+    color: var(--muted);
+    border: 1px solid var(--border);
     padding: 8px 16px;
     border-radius: 8px;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .clear-button:hover {
-    color: white;
-    border-color: #777;
+    color: var(--text);
+    border-color: var(--accent);
 }
 
 .content-types {
@@ -117,20 +197,21 @@ body {
     text-align: left;
     padding: 20px;
     border-radius: 12px;
-    border: 1px solid #2b2b35;
-    background: #0e0e13;
-    color: white;
+    border: 1px solid var(--border);
+    background: var(--bg-soft);
+    color: var(--text);
     cursor: pointer;
-    transition: 0.2s;
+    transition: 0.2s ease;
 }
 
 .type-button:hover {
-    border-color: #777;
+    border-color: var(--accent);
+    background: var(--card-hover);
 }
 
 .type-button.active {
-    border-color: #a78bfa;
-    background: #1b1727;
+    border-color: var(--accent);
+    background: var(--accent-soft);
 }
 
 .type-icon {
@@ -146,7 +227,7 @@ body {
 }
 
 .type-button small {
-    color: #8f8f9a;
+    color: var(--muted);
 }
 
 .prompt-section label {
@@ -159,17 +240,19 @@ textarea {
     width: 100%;
     height: 150px;
     resize: vertical;
-    background: #0c0c11;
-    border: 1px solid #30303a;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
     border-radius: 12px;
-    color: white;
+    color: var(--text);
     padding: 16px;
     font-size: 15px;
     outline: none;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 textarea:focus {
-    border-color: #a78bfa;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124, 106, 229, 0.15);
 }
 
 .prompt-actions {
@@ -179,14 +262,15 @@ textarea:focus {
 }
 
 .generate-button {
-    background: #a78bfa;
+    background: var(--accent);
     border: none;
-    color: #09090c;
+    color: var(--button-text);
     padding: 13px 25px;
     border-radius: 9px;
     font-size: 15px;
     font-weight: bold;
     cursor: pointer;
+    transition: opacity 0.2s ease;
 }
 
 .generate-button:hover {
@@ -195,7 +279,7 @@ textarea:focus {
 
 .prompt-library {
     margin-top: 45px;
-    border-top: 1px solid #292932;
+    border-top: 1px solid var(--border);
     padding-top: 35px;
 }
 
@@ -209,7 +293,7 @@ textarea:focus {
 }
 
 .library-header p {
-    color: #8e8e99;
+    color: var(--muted);
     font-size: 14px;
 }
 
@@ -220,17 +304,19 @@ textarea:focus {
 }
 
 .prompt-card {
-    background: #0e0e13;
-    color: white;
-    border: 1px solid #292932;
+    background: var(--bg-soft);
+    color: var(--text);
+    border: 1px solid var(--border);
     border-radius: 10px;
     padding: 16px;
     text-align: left;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
 .prompt-card:hover {
-    border-color: #a78bfa;
+    border-color: var(--accent);
+    background: var(--card-hover);
 }
 
 .prompt-card strong {
@@ -239,7 +325,7 @@ textarea:focus {
 }
 
 .prompt-card span {
-    color: #858591;
+    color: var(--muted);
     font-size: 13px;
 }
 
@@ -255,8 +341,8 @@ textarea:focus {
 .spinner {
     width: 35px;
     height: 35px;
-    border: 3px solid #33333d;
-    border-top: 3px solid #a78bfa;
+    border: 3px solid var(--spinner-track);
+    border-top: 3px solid var(--accent);
     border-radius: 50%;
     margin: auto auto 15px;
     animation: spin 1s linear infinite;
@@ -281,16 +367,16 @@ textarea:focus {
 
 .copy-button {
     background: transparent;
-    color: white;
-    border: 1px solid #33333d;
+    color: var(--text);
+    border: 1px solid var(--border);
     padding: 8px 16px;
     border-radius: 8px;
     cursor: pointer;
 }
 
 .result-box {
-    background: #0b0b0f;
-    border: 1px solid #292932;
+    background: var(--bg-soft);
+    border: 1px solid var(--border);
     border-radius: 12px;
     padding: 20px;
     min-height: 150px;
@@ -308,10 +394,10 @@ textarea:focus {
 }
 
 footer {
-    border-top: 1px solid #222229;
+    border-top: 1px solid var(--border);
     padding: 30px;
     text-align: center;
-    color: #777783;
+    color: var(--muted);
     font-size: 13px;
 }
 
