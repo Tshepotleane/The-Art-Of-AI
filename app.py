@@ -1,126 +1,344 @@
 import os
+
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
-from openai import OpenAI
+from google import genai
+from google.genai import types
+
+
+# ============================================================
+# LOAD ENVIRONMENT VARIABLES
+# ============================================================
 
 load_dotenv()
 
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+TEXT_MODEL = os.getenv(
+    "GEMINI_TEXT_MODEL",
+    "gemini-3.8-flash"
+)
+
+IMAGE_MODEL = os.getenv(
+    "GEMINI_IMAGE_MODEL",
+    "gemini-3.1-flash-image"
+)
+
+
+# ============================================================
+# FLASK APPLICATION
+# ============================================================
+
 app = Flask(__name__)
 
-api_key = os.getenv("OPENAI_API_KEY")
 
-if not api_key:
-    print("WARNING: OPENAI_API_KEY is not set in the .env file.")
+# ============================================================
+# GEMINI CLIENT
+# ============================================================
 
-client = OpenAI(api_key=api_key) if api_key else None
+client = None
 
+if GEMINI_API_KEY:
+    client = genai.Client(
+        api_key=GEMINI_API_KEY
+    )
+
+    print("Gemini API configuration loaded.")
+
+else:
+    print("WARNING: GEMINI_API_KEY is missing from .env")
+
+
+# ============================================================
+# HOME PAGE
+# ============================================================
 
 @app.route("/")
 def home():
     return render_template("index.html")
 
 
+# ============================================================
+# GENERATE CONTENT
+# ============================================================
+
 @app.route("/generate", methods=["POST"])
 def generate():
+
     try:
+
+        # ----------------------------------------------------
+        # CHECK GEMINI CLIENT
+        # ----------------------------------------------------
+
+        if client is None:
+
+            return jsonify({
+                "success": False,
+                "error": "Gemini API key is missing. Check your .env file."
+            }), 500
+
+
+        # ----------------------------------------------------
+        # GET DATA FROM FRONTEND
+        # ----------------------------------------------------
+
         data = request.get_json()
 
+        if not data:
+
+            return jsonify({
+                "success": False,
+                "error": "No data was received."
+            }), 400
+
+
         prompt = data.get("prompt", "").strip()
-        content_type = data.get("content_type", "text")
+
+        content_type = data.get(
+            "content_type",
+            "text"
+        ).lower()
+
+
+        # ----------------------------------------------------
+        # CHECK PROMPT
+        # ----------------------------------------------------
 
         if not prompt:
+
             return jsonify({
                 "success": False,
                 "error": "Please enter a prompt."
             }), 400
 
-        if not client:
-            return jsonify({
-                "success": False,
-                "error": "API key is missing. Please check your .env file."
-            }), 500
 
-        # IMAGE GENERATION
-        if content_type == "image":
-            response = client.images.generate(
-                model="gpt-image-1",
-                prompt=prompt,
-                size="1024x1024"
+        print("----------------------------------------")
+        print("New generation request")
+        print("Content type:", content_type)
+        print("Prompt:", prompt)
+        print("----------------------------------------")
+
+
+        # ====================================================
+        # TEXT / LINKEDIN / ARTICLE
+        # ====================================================
+
+        if content_type in [
+            "text",
+            "linkedin",
+            "article",
+            "motivation"
+        ]:
+
+            response = client.models.generate_content(
+                model=TEXT_MODEL,
+                contents=prompt
             )
 
-            image_data = response.data[0]
+            result = response.text
 
-            if hasattr(image_data, "url") and image_data.url:
-                return jsonify({
-                    "success": True,
-                    "type": "image",
-                    "result": image_data.url
-                })
 
-            if hasattr(image_data, "b64_json") and image_data.b64_json:
+            if not result:
+
                 return jsonify({
-                    "success": True,
-                    "type": "image_base64",
-                    "result": image_data.b64_json
-                })
+                    "success": False,
+                    "error": "Gemini returned an empty response."
+                }), 500
+
 
             return jsonify({
-                "success": False,
-                "error": "The image was generated, but no image data was returned."
-            }), 500
+                "success": True,
+                "type": "text",
+                "result": result
+            })
 
-        # TEXT / CODE GENERATION
-        system_message = """
-You are The Art Of AI, an AI content creation assistant.
 
-Help users create useful, accurate and high-quality content.
+        # ====================================================
+        # CODE GENERATION
+        # ====================================================
 
-If the user asks for code:
-- Provide clean and readable code.
-- Explain the important parts.
-- Follow the programming language requested.
+        elif content_type == "code":
 
-If the user asks for normal content:
-- Make it clear, useful and well structured.
-- Match the user's requested tone and purpose.
+            code_prompt = f"""
+You are an expert software developer.
+
+The user wants the following:
+
+{prompt}
+
+Generate clean, functional and beginner-friendly code.
+
+Requirements:
+
+- Use the programming language requested by the user.
+- Make the code easy to understand.
+- Include useful comments.
+- Make sure the code is syntactically correct.
+- Do not invent libraries that are unnecessary.
+- Return the actual code.
 """
 
-        if content_type == "code":
-            system_message += """
-The user specifically wants code.
-Return the solution with a short explanation.
-Use markdown code blocks where appropriate.
-"""
 
-        response = client.responses.create(
-            model="gpt-5-mini",
-            instructions=system_message,
-            input=prompt
-        )
+            response = client.models.generate_content(
+                model=TEXT_MODEL,
+                contents=code_prompt
+            )
 
-        result = response.output_text
+            result = response.text
 
-        return jsonify({
-            "success": True,
-            "type": content_type,
-            "result": result
-        })
 
-    except Exception as error:
-        print("ERROR:", error)
+            if not result:
+
+                return jsonify({
+                    "success": False,
+                    "error": "Gemini returned an empty code response."
+                }), 500
+
+
+            return jsonify({
+                "success": True,
+                "type": "code",
+                "result": result
+            })
+
+
+        # ====================================================
+        # IMAGE GENERATION
+        # ====================================================
+
+        elif content_type == "image":
+
+            print("Generating image with Gemini...")
+
+
+            response = client.models.generate_content(
+                model=IMAGE_MODEL,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"]
+                )
+            )
+
+
+            image_saved = False
+            image_url = None
+
+
+            # ------------------------------------------------
+            # LOOK THROUGH GEMINI RESPONSE
+            # ------------------------------------------------
+
+            for part in response.parts:
+
+                if part.inline_data is not None:
+
+                    image = part.as_image()
+
+
+                    # ----------------------------------------
+                    # CREATE GENERATED IMAGE FOLDER
+                    # ----------------------------------------
+
+                    generated_folder = os.path.join(
+                        app.static_folder,
+                        "generated"
+                    )
+
+                    os.makedirs(
+                        generated_folder,
+                        exist_ok=True
+                    )
+
+
+                    # ----------------------------------------
+                    # SAVE IMAGE
+                    # ----------------------------------------
+
+                    image_path = os.path.join(
+                        generated_folder,
+                        "generated_image.png"
+                    )
+
+                    image.save(image_path)
+
+
+                    image_url = (
+                        "/static/generated/generated_image.png"
+                    )
+
+                    image_saved = True
+
+                    break
+
+
+            # ------------------------------------------------
+            # CHECK IF IMAGE WAS CREATED
+            # ------------------------------------------------
+
+            if not image_saved:
+
+                return jsonify({
+                    "success": False,
+                    "error": "Gemini did not return an image."
+                }), 500
+
+
+            return jsonify({
+                "success": True,
+                "type": "image",
+                "result": image_url
+            })
+
+
+        # ====================================================
+        # UNKNOWN CONTENT TYPE
+        # ====================================================
+
+        else:
+
+            response = client.models.generate_content(
+                model=TEXT_MODEL,
+                contents=prompt
+            )
+
+            result = response.text
+
+
+            return jsonify({
+                "success": True,
+                "type": "text",
+                "result": result
+            })
+
+
+    # ========================================================
+    # ERROR HANDLING
+    # ========================================================
+
+    except Exception as e:
+
+        print("----------------------------------------")
+        print("GENERATION ERROR")
+        print(type(e).__name__)
+        print(str(e))
+        print("----------------------------------------")
+
 
         return jsonify({
             "success": False,
-            "error": str(error)
+            "error": str(e)
         }), 500
 
 
-@app.route("/health")
-def health():
-    return jsonify({
-        "status": "The Art Of AI is running"
-    })
-
+# ============================================================
+# RUN APPLICATION
+# ============================================================
 
 if __name__ == "__main__":
-    app.run(debug=True)
+
+    app.run(
+        host="127.0.0.1",
+        port=5000,
+        debug=True
+    )
