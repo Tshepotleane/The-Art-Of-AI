@@ -1,14 +1,32 @@
+
+/* ============================================================
+   THE ART OF AI
+   MAIN JAVASCRIPT
+============================================================ */
+
+
+/* ============================================================
+   GLOBAL VARIABLES
+============================================================ */
+
 let selectedType = "text";
+
+
+/* ============================================================
+   DOM ELEMENTS
+============================================================ */
 
 const typeButtons = document.querySelectorAll(".type-button");
 const promptCards = document.querySelectorAll(".prompt-card");
 
 const promptInput = document.getElementById("prompt");
 const generateButton = document.getElementById("generateButton");
+
 const themeToggle = document.getElementById("themeToggle");
 const themeLabel = themeToggle?.querySelector(".theme-label");
 
 const loading = document.getElementById("loading");
+
 const resultSection = document.getElementById("resultSection");
 const resultBox = document.getElementById("result");
 
@@ -16,70 +34,147 @@ const copyButton = document.getElementById("copyButton");
 const clearButton = document.getElementById("clearButton");
 
 
+/* ============================================================
+   THEME MANAGEMENT
+============================================================ */
+
 function applyTheme(theme) {
+
     const isDark = theme === "dark";
 
-    document.body.classList.toggle("dark-theme", isDark);
-    document.body.classList.toggle("light-theme", !isDark);
+    document.body.classList.toggle(
+        "dark-theme",
+        isDark
+    );
+
+    document.body.classList.toggle(
+        "light-theme",
+        !isDark
+    );
+
+
+    // Update theme label
 
     if (themeLabel) {
-        themeLabel.textContent = isDark ? "Light" : "Dark";
+
+        themeLabel.textContent = isDark
+            ? "Light"
+            : "Dark";
+
     }
+
+
+    // Update accessibility label
 
     if (themeToggle) {
+
         themeToggle.setAttribute(
             "aria-label",
-            isDark ? "Switch to light mode" : "Switch to dark mode"
+            isDark
+                ? "Switch to light mode"
+                : "Switch to dark mode"
         );
+
     }
 
-    localStorage.setItem("theme", theme);
+
+    // Save selected theme
+
+    localStorage.setItem(
+        "theme",
+        theme
+    );
+
 }
 
-const initialTheme = "dark";
 
-applyTheme(initialTheme);
+// Load saved theme
+
+const savedTheme = localStorage.getItem("theme") || "dark";
+
+applyTheme(savedTheme);
+
+
+// Theme toggle button
 
 if (themeToggle) {
+
     themeToggle.addEventListener("click", () => {
-        const nextTheme = document.body.classList.contains("dark-theme") ? "light" : "dark";
+
+        const nextTheme =
+            document.body.classList.contains("dark-theme")
+                ? "light"
+                : "dark";
+
         applyTheme(nextTheme);
+
     });
+
 }
 
 
-// SELECT CONTENT TYPE
+/* ============================================================
+   CONTENT TYPE SELECTION
+============================================================ */
+
 typeButtons.forEach(button => {
 
     button.addEventListener("click", () => {
 
+        // Remove active state from all buttons
+
         typeButtons.forEach(item => {
+
             item.classList.remove("active");
+
         });
+
+
+        // Activate selected button
 
         button.classList.add("active");
 
+
+        // Update selected content type
+
         selectedType = button.dataset.type;
 
+
+        // Update prompt placeholder
+
         updatePlaceholder();
+
     });
 
 });
 
 
+/* ============================================================
+   PROMPT PLACEHOLDER
+============================================================ */
+
 function updatePlaceholder() {
+
+    if (!promptInput) {
+        return;
+    }
+
 
     if (selectedType === "text") {
 
         promptInput.placeholder =
             "Describe the text you want the AI to create...";
 
-    } else if (selectedType === "code") {
+    }
+
+    else if (selectedType === "code") {
 
         promptInput.placeholder =
             "Describe the code you want the AI to create...";
 
-    } else if (selectedType === "image") {
+    }
+
+    else if (selectedType === "image") {
 
         promptInput.placeholder =
             "Describe the image you want the AI to create...";
@@ -89,12 +184,20 @@ function updatePlaceholder() {
 }
 
 
-// PROMPT LIBRARY
+/* ============================================================
+   PROMPT LIBRARY
+============================================================ */
+
 promptCards.forEach(card => {
 
     card.addEventListener("click", () => {
 
+        // Get prompt from selected card
+
         promptInput.value = card.dataset.prompt;
+
+
+        // Focus prompt input
 
         promptInput.focus();
 
@@ -103,35 +206,61 @@ promptCards.forEach(card => {
 });
 
 
-// CLEAR
-clearButton.addEventListener("click", () => {
-    promptInput.value = "";
-    promptInput.focus();
-});
+/* ============================================================
+   GENERATE CONTENT
+============================================================ */
 
+if (generateButton) {
 
-// GENERATE
-generateButton.addEventListener("click", generateContent);
+    generateButton.addEventListener(
+        "click",
+        generateContent
+    );
+
+}
 
 
 async function generateContent() {
 
+    // --------------------------------------------------------
+    // GET PROMPT
+    // --------------------------------------------------------
+
     const prompt = promptInput.value.trim();
+
+
+    // --------------------------------------------------------
+    // VALIDATE PROMPT
+    // --------------------------------------------------------
 
     if (!prompt) {
 
         alert("Please enter a prompt first.");
 
         return;
+
     }
 
 
+    // --------------------------------------------------------
+    // SHOW LOADING STATE
+    // --------------------------------------------------------
+
     loading.classList.remove("hidden");
+
     resultSection.classList.add("hidden");
 
+
+    // Disable generate button
+
     generateButton.disabled = true;
+
     generateButton.textContent = "Generating...";
 
+
+    // --------------------------------------------------------
+    // SEND REQUEST TO FLASK BACKEND
+    // --------------------------------------------------------
 
     try {
 
@@ -140,42 +269,118 @@ async function generateContent() {
             method: "POST",
 
             headers: {
+
                 "Content-Type": "application/json"
+
             },
 
             body: JSON.stringify({
+
                 prompt: prompt,
+
                 content_type: selectedType
+
             })
 
         });
 
 
-        const data = await response.json();
+        // ----------------------------------------------------
+        // READ RESPONSE AS TEXT
+        // ----------------------------------------------------
+
+        const responseText = await response.text();
 
 
-        if (!response.ok || !data.success) {
+        // ----------------------------------------------------
+        // PARSE JSON SAFELY
+        // ----------------------------------------------------
+
+        let data;
+
+        try {
+
+            data = JSON.parse(responseText);
+
+        }
+
+        catch (parseError) {
+
+            console.error(
+                "Server returned a non-JSON response:"
+            );
+
+            console.error(responseText);
+
 
             throw new Error(
-                data.error || "Something went wrong."
+
+                `The server returned an unexpected response ` +
+                `(HTTP ${response.status}). ` +
+                `Please check the Render logs.`
+
             );
 
         }
 
 
+        // ----------------------------------------------------
+        // HANDLE HTTP OR API ERRORS
+        // ----------------------------------------------------
+
+        if (!response.ok || !data.success) {
+
+            throw new Error(
+
+                data.error ||
+                `Request failed with HTTP ${response.status}`
+
+            );
+
+        }
+
+
+        // ----------------------------------------------------
+        // DISPLAY SUCCESSFUL RESULT
+        // ----------------------------------------------------
+
         displayResult(data);
 
 
-    } catch (error) {
+    }
+
+    catch (error) {
+
+        // ----------------------------------------------------
+        // DISPLAY ERROR
+        // ----------------------------------------------------
+
+        console.error(
+            "Content generation error:",
+            error
+        );
+
 
         resultSection.classList.remove("hidden");
+
 
         resultBox.textContent =
             "Error: " + error.message;
 
-    } finally {
+    }
+
+    finally {
+
+        // ----------------------------------------------------
+        // HIDE LOADING STATE
+        // ----------------------------------------------------
 
         loading.classList.add("hidden");
+
+
+        // ----------------------------------------------------
+        // RESTORE GENERATE BUTTON
+        // ----------------------------------------------------
 
         generateButton.disabled = false;
 
@@ -187,17 +392,33 @@ async function generateContent() {
 }
 
 
-// DISPLAY RESULT
+/* ============================================================
+   DISPLAY GENERATED CONTENT
+============================================================ */
+
 function displayResult(data) {
 
+    // Show result section
+
     resultSection.classList.remove("hidden");
+
+
+    // Clear previous result
 
     resultBox.innerHTML = "";
 
 
-    if (data.type === "image" && data.result) {
+    // --------------------------------------------------------
+    // IMAGE RESULT
+    // --------------------------------------------------------
+
+    if (
+        data.type === "image" &&
+        data.result
+    ) {
 
         const image = document.createElement("img");
+
 
         image.src = data.result;
 
@@ -205,15 +426,28 @@ function displayResult(data) {
 
         image.className = "result-image";
 
+
+        // Append generated image
+
         resultBox.appendChild(image);
 
+
         return;
+
     }
 
 
-    if (data.type === "image_base64" && data.result) {
+    // --------------------------------------------------------
+    // BASE64 IMAGE RESULT
+    // --------------------------------------------------------
+
+    if (
+        data.type === "image_base64" &&
+        data.result
+    ) {
 
         const image = document.createElement("img");
+
 
         image.src =
             "data:image/png;base64," + data.result;
@@ -222,83 +456,189 @@ function displayResult(data) {
 
         image.className = "result-image";
 
+
+        // Append generated image
+
         resultBox.appendChild(image);
 
+
         return;
+
     }
 
+
+    // --------------------------------------------------------
+    // TEXT AND CODE RESULT
+    // --------------------------------------------------------
 
     const text = document.createElement("div");
 
+
     text.textContent = data.result;
 
+
+    // Append generated content
+
     resultBox.appendChild(text);
+
 }
 
 
-// COPY RESULT
-copyButton.addEventListener("click", async () => {
+/* ============================================================
+   COPY GENERATED CONTENT
+============================================================ */
 
-    const text = resultBox.innerText;
+if (copyButton) {
 
-    if (!text) {
-        return;
-    }
+    copyButton.addEventListener("click", async () => {
 
-    try {
-
-        await navigator.clipboard.writeText(text);
-
-        copyButton.textContent = "Copied!";
-
-        setTimeout(() => {
-
-            copyButton.textContent = "Copy";
-
-        }, 1500);
-
-    } catch (error) {
-
-        alert("Unable to copy the content.");
-
-    }
-
-});
+        const text = resultBox.innerText;
 
 
-// CLEAR
-clearButton.addEventListener("click", () => {
+        // Check result
 
-    promptInput.value = "";
+        if (!text) {
 
-    resultBox.innerHTML = "";
+            return;
 
-    resultSection.classList.add("hidden");
+        }
 
-    selectedType = "text";
 
-    typeButtons.forEach(button => {
+        try {
 
-        button.classList.remove("active");
+            // Copy to clipboard
+
+            await navigator.clipboard.writeText(text);
+
+
+            // Update button
+
+            copyButton.textContent = "Copied!";
+
+
+            // Restore button label
+
+            setTimeout(() => {
+
+                copyButton.textContent = "Copy";
+
+            }, 1500);
+
+        }
+
+        catch (error) {
+
+            console.error(
+                "Clipboard error:",
+                error
+            );
+
+
+            alert(
+                "Unable to copy the content."
+            );
+
+        }
 
     });
 
-    document
-        .querySelector('[data-type="text"]')
-        .classList.add("active");
-
-    updatePlaceholder();
-
-});
+}
 
 
-// ENTER KEY
-promptInput.addEventListener("keydown", event => {
+/* ============================================================
+   CLEAR CONTENT
+============================================================ */
 
-    if (event.ctrlKey && event.key === "Enter") {
+if (clearButton) {
 
-        generateContent();
+    clearButton.addEventListener("click", () => {
 
-    }
+        // Clear prompt
 
-});
+        promptInput.value = "";
+
+
+        // Clear generated result
+
+        resultBox.innerHTML = "";
+
+
+        // Hide result section
+
+        resultSection.classList.add("hidden");
+
+
+        // Reset selected type
+
+        selectedType = "text";
+
+
+        // Reset content type buttons
+
+        typeButtons.forEach(button => {
+
+            button.classList.remove("active");
+
+        });
+
+
+        // Activate text button
+
+        const textButton =
+            document.querySelector('[data-type="text"]');
+
+
+        if (textButton) {
+
+            textButton.classList.add("active");
+
+        }
+
+
+        // Reset placeholder
+
+        updatePlaceholder();
+
+
+        // Focus prompt
+
+        promptInput.focus();
+
+    });
+
+}
+
+
+/* ============================================================
+   KEYBOARD SHORTCUT
+============================================================ */
+
+// Ctrl + Enter generates content
+
+if (promptInput) {
+
+    promptInput.addEventListener("keydown", event => {
+
+        if (
+            event.ctrlKey &&
+            event.key === "Enter"
+        ) {
+
+            generateContent();
+
+        }
+
+    });
+
+}
+
+
+/* ============================================================
+   INITIALIZE APPLICATION
+============================================================ */
+
+// Initialize prompt placeholder
+
+updatePlaceholder();
+
+console.log("The Art Of AI initialized successfully.");
