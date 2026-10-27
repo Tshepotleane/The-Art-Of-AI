@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 
 from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
@@ -49,11 +50,11 @@ if GEMINI_API_KEY:
 
 else:
 
-    print("WARNING: GEMINI_API_KEY is missing from .env")
+    print("WARNING: GEMINI_API_KEY is missing.")
 
 
 # ============================================================
-# GEMINI CONFIGURATION
+# GENERATION CONFIGURATION
 # ============================================================
 
 generation_config = types.GenerateContentConfig(
@@ -61,8 +62,18 @@ generation_config = types.GenerateContentConfig(
         disable=True
     )
 )
+
+
+# ============================================================
+# GEMINI TEXT GENERATION WITH RETRIES
+# ============================================================
+
 def generate_text_with_retry(prompt):
-    max_attempts = 4
+
+    if client is None:
+        raise RuntimeError("Gemini API key is not configured.")
+
+    max_attempts = 3
 
     for attempt in range(max_attempts):
 
@@ -76,30 +87,32 @@ def generate_text_with_retry(prompt):
 
             return response
 
-        except Exception as e:
+        except Exception as error:
 
-            error_message = str(e)
+            error_message = str(error).lower()
 
-            if "503" in error_message or "UNAVAILABLE" in error_message:
+            temporary_error = (
+                "503" in error_message
+                or "unavailable" in error_message
+                or "429" in error_message
+                or "resource_exhausted" in error_message
+            )
 
-                if attempt < max_attempts - 1:
+            if temporary_error and attempt < max_attempts - 1:
 
-                    wait_time = 2 ** attempt
+                wait_time = 2 ** attempt
 
-                    print(
-                        f"Gemini temporarily unavailable. "
-                        f"Retrying in {wait_time} seconds..."
-                    )
+                print(
+                    f"Gemini temporarily unavailable. "
+                    f"Retrying in {wait_time} seconds..."
+                )
 
-                    time.sleep(wait_time)
-
-                else:
-
-                    raise
+                time.sleep(wait_time)
 
             else:
 
                 raise
+
 
 # ============================================================
 # HOME PAGE
@@ -121,22 +134,25 @@ def generate():
     try:
 
         # ----------------------------------------------------
-        # CHECK GEMINI CLIENT
+        # CHECK API CLIENT
         # ----------------------------------------------------
 
         if client is None:
 
             return jsonify({
                 "success": False,
-                "error": "Gemini API key is missing. Check your .env file."
+                "error": (
+                    "Gemini API key is missing. "
+                    "Please configure GEMINI_API_KEY in Render."
+                )
             }), 500
 
 
         # ----------------------------------------------------
-        # GET DATA FROM FRONTEND
+        # GET FRONTEND DATA
         # ----------------------------------------------------
 
-        data = request.get_json()
+        data = request.get_json(silent=True)
 
         if not data:
 
@@ -155,7 +171,7 @@ def generate():
 
 
         # ----------------------------------------------------
-        # CHECK PROMPT
+        # VALIDATE PROMPT
         # ----------------------------------------------------
 
         if not prompt:
@@ -166,11 +182,10 @@ def generate():
             }), 400
 
 
-        print()
         print("========================================")
         print("NEW GENERATION REQUEST")
         print("Content type:", content_type)
-        print("Prompt:", prompt)
+        print("Model:", TEXT_MODEL)
         print("========================================")
 
 
@@ -188,7 +203,6 @@ def generate():
             response = generate_text_with_retry(prompt)
 
             result = response.text
-
 
             if not result:
 
@@ -230,11 +244,9 @@ Requirements:
 - Return the actual code.
 """
 
-            response = generate_text_with_retry(prompt)
-
+            response = generate_text_with_retry(code_prompt)
 
             result = response.text
-
 
             if not result:
 
@@ -255,10 +267,6 @@ Requirements:
         # IMAGE GENERATION
         # ====================================================
 
-               # ====================================================
-        # IMAGE GENERATION
-        # ====================================================
-
         elif content_type == "image":
 
             print("Generating image...")
@@ -273,9 +281,9 @@ Requirements:
                 image_saved = False
                 image_url = None
 
-                # ------------------------------------------------
+                # ----------------------------------------------
                 # CHECK RESPONSE PARTS
-                # ------------------------------------------------
+                # ----------------------------------------------
 
                 for part in response.parts:
 
@@ -283,9 +291,9 @@ Requirements:
 
                         image = part.as_image()
 
-                        # ----------------------------------------
+                        # --------------------------------------
                         # CREATE IMAGE FOLDER
-                        # ----------------------------------------
+                        # --------------------------------------
 
                         generated_folder = os.path.join(
                             app.static_folder,
@@ -297,39 +305,48 @@ Requirements:
                             exist_ok=True
                         )
 
-                        # ----------------------------------------
-                        # SAVE IMAGE
-                        # ----------------------------------------
+                        # --------------------------------------
+                        # UNIQUE IMAGE NAME
+                        # --------------------------------------
+
+                        image_filename = (
+                            f"generated_{uuid.uuid4().hex}.png"
+                        )
 
                         image_path = os.path.join(
                             generated_folder,
-                            "generated_image.png"
+                            image_filename
                         )
+
+                        # --------------------------------------
+                        # SAVE IMAGE
+                        # --------------------------------------
 
                         image.save(image_path)
 
                         image_url = (
-                            "/static/generated/generated_image.png"
+                            f"/static/generated/{image_filename}"
                         )
 
                         image_saved = True
 
                         break
 
-                # ------------------------------------------------
-                # CHECK IF IMAGE WAS CREATED
-                # ------------------------------------------------
+
+                # ----------------------------------------------
+                # CHECK IMAGE
+                # ----------------------------------------------
 
                 if not image_saved:
 
                     return jsonify({
                         "success": False,
                         "error": (
-                            "Image generation is currently unavailable. "
-                            "Please try again later. "
-                            "Text and code generation are still available."
+                            "Gemini did not return an image. "
+                            "Please try a different prompt."
                         )
-                    }), 503
+                    }), 500
+
 
                 return jsonify({
                     "success": True,
@@ -337,110 +354,50 @@ Requirements:
                     "result": image_url
                 })
 
+
             except Exception as image_error:
 
-                error_text = str(image_error)
-
                 print("IMAGE GENERATION ERROR:")
-                print(error_text)
+                print(str(image_error))
 
-                # ------------------------------------------------
-                # HANDLE IMAGE QUOTA
-                # ------------------------------------------------
+                error_text = str(image_error).lower()
 
                 if (
                     "429" in error_text
-                    or "RESOURCE_EXHAUSTED" in error_text
-                    or "quota" in error_text.lower()
+                    or "resource_exhausted" in error_text
+                    or "quota" in error_text
                 ):
 
                     return jsonify({
                         "success": False,
                         "error": (
-                            "AI Artwork is temporarily unavailable "
-                            "because the image-generation quota has "
-                            "been reached. Text and code generation "
-                            "are still available."
+                            "Image generation has reached its API quota. "
+                            "Please try again later."
                         )
                     }), 429
 
-                # ------------------------------------------------
-                # HANDLE OTHER IMAGE ERRORS
-                # ------------------------------------------------
+
+                if (
+                    "503" in error_text
+                    or "unavailable" in error_text
+                ):
+
+                    return jsonify({
+                        "success": False,
+                        "error": (
+                            "Gemini image generation is temporarily "
+                            "unavailable. Please try again later."
+                        )
+                    }), 503
+
 
                 return jsonify({
                     "success": False,
                     "error": (
-                        "AI Artwork could not be generated right now. "
-                        "Please try again later."
+                        "Image generation failed. "
+                        "Please check your API configuration."
                     )
                 }), 500
-
-
-            # ------------------------------------------------
-            # CHECK RESPONSE PARTS
-            # ------------------------------------------------
-
-            for part in response.parts:
-
-                if part.inline_data is not None:
-
-                    image = part.as_image()
-
-
-                    # ----------------------------------------
-                    # CREATE IMAGE FOLDER
-                    # ----------------------------------------
-
-                    generated_folder = os.path.join(
-                        app.static_folder,
-                        "generated"
-                    )
-
-                    os.makedirs(
-                        generated_folder,
-                        exist_ok=True
-                    )
-
-
-                    # ----------------------------------------
-                    # SAVE IMAGE
-                    # ----------------------------------------
-
-                    image_path = os.path.join(
-                        generated_folder,
-                        "generated_image.png"
-                    )
-
-                    image.save(image_path)
-
-
-                    image_url = (
-                        "/static/generated/generated_image.png"
-                    )
-
-                    image_saved = True
-
-                    break
-
-
-            # ------------------------------------------------
-            # CHECK IMAGE
-            # ------------------------------------------------
-
-            if not image_saved:
-
-                return jsonify({
-                    "success": False,
-                    "error": "Gemini did not return an image."
-                }), 500
-
-
-            return jsonify({
-                "success": True,
-                "type": "image",
-                "result": image_url
-            })
 
 
         # ====================================================
@@ -449,39 +406,79 @@ Requirements:
 
         else:
 
-            response = client.models.generate_content(
-                model=TEXT_MODEL,
-                contents=prompt,
-                config=generation_config
-            )
-
-            result = response.text
-
-
             return jsonify({
-                "success": True,
-                "type": "text",
-                "result": result
-            })
+                "success": False,
+                "error": (
+                    f"Unsupported content type: {content_type}"
+                )
+            }), 400
 
 
     # ========================================================
-    # ERROR HANDLING
+    # GENERAL ERROR HANDLING
     # ========================================================
 
-    except Exception as e:
+    except Exception as error:
 
-        print()
         print("========================================")
         print("GENERATION ERROR")
-        print(type(e).__name__)
-        print(str(e))
+        print(type(error).__name__)
+        print(str(error))
         print("========================================")
+
+        error_text = str(error).lower()
+
+        if (
+            "404" in error_text
+            or "not_found" in error_text
+        ):
+
+            message = (
+                "The selected Gemini model is unavailable. "
+                "Please check GEMINI_TEXT_MODEL in Render."
+            )
+
+            return jsonify({
+                "success": False,
+                "error": message
+            }), 503
+
+
+        if (
+            "429" in error_text
+            or "resource_exhausted" in error_text
+            or "quota" in error_text
+        ):
+
+            return jsonify({
+                "success": False,
+                "error": (
+                    "Gemini API quota exceeded. "
+                    "Please check your API usage and try again later."
+                )
+            }), 429
+
+
+        if (
+            "503" in error_text
+            or "unavailable" in error_text
+        ):
+
+            return jsonify({
+                "success": False,
+                "error": (
+                    "Gemini is temporarily unavailable. "
+                    "Please try again shortly."
+                )
+            }), 503
 
 
         return jsonify({
             "success": False,
-            "error": str(e)
+            "error": (
+                "Content generation failed. "
+                "Please check the server logs."
+            )
         }), 500
 
 
@@ -492,7 +489,7 @@ Requirements:
 if __name__ == "__main__":
 
     app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True
+        host="0.0.0.0",
+        port=int(os.environ.get("PORT", 5000)),
+        debug=False
     )
