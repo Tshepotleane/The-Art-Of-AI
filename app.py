@@ -45,7 +45,7 @@ if GEMINI_API_KEY:
     client = genai.Client(
     api_key=GEMINI_API_KEY,
     http_options=types.HttpOptions(
-        timeout=45000
+        timeout=90000
     )
 )
     
@@ -77,7 +77,7 @@ def generate_text_with_retry(prompt):
     if client is None:
         raise RuntimeError("Gemini API key is not configured.")
 
-    max_attempts = 1
+    max_attempts = 2
 
     for attempt in range(max_attempts):
 

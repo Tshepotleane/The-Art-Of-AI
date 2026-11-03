@@ -158,7 +158,7 @@ async function generateContent() {
     const timeoutDuration =
         selectedType === "image"
             ? 90000
-            : 45000;
+            : 120000;
 
     const controller = new AbortController();
 
